@@ -20,16 +20,16 @@ final class Schema {
 		if ( is_admin() || is_feed() || is_404() || is_search() ) {
 			return;
 		}
-		$data        = Business::get();
-		$home        = home_url( '/' );
-		$business_id = $home . '#business';
-		$website_id  = $home . '#website';
-		$meta        = new Meta();
-		$page_url    = $meta->canonical();
-		$graph       = array();
-		$schema_type = sanitize_text_field( (string) $data['schema_type'] );
-		$schema_type = $schema_type ? $schema_type : 'Organization';
-		$schema_type = apply_filters( 'mrn_seo_business_schema_type', $schema_type, $data );
+		$data         = Business::get();
+		$home         = home_url( '/' );
+		$business_id  = $home . '#business';
+		$website_id   = $home . '#website';
+		$meta         = new Meta();
+		$page_url     = $meta->canonical();
+		$graph        = array();
+		$schema_types = Business::list_setting( 'schema_type' );
+		$schema_type  = $schema_types ? ( 1 === count( $schema_types ) ? reset( $schema_types ) : $schema_types ) : 'Organization';
+		$schema_type  = apply_filters( 'mrn_seo_business_schema_type', $schema_type, $data );
 
 		$business = array(
 			'@type' => $schema_type,

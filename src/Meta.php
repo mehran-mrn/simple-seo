@@ -162,10 +162,19 @@ final class Meta {
 
 	/** @return array{slug:string,title:string,description:string}|null */
 	private function page_rule(): ?array {
-		if ( ! is_singular() ) {
+		if ( is_home() ) {
+			$page_id = (int) get_option( 'page_for_posts' );
+		} elseif ( function_exists( 'is_shop' ) && is_shop() && function_exists( 'wc_get_page_id' ) ) {
+			$page_id = (int) wc_get_page_id( 'shop' );
+		} elseif ( is_singular() ) {
+			$page_id = get_queried_object_id();
+		} else {
 			return null;
 		}
-		$current_slug = (string) get_post_field( 'post_name', get_queried_object_id() );
+		if ( $page_id < 1 ) {
+			return null;
+		}
+		$current_slug = (string) get_post_field( 'post_name', $page_id );
 		$data         = Business::get();
 		$lines        = preg_split( '/\R/', (string) $data['page_metadata'] );
 		foreach ( $lines ? $lines : array() as $line ) {

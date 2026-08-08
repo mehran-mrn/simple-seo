@@ -3,7 +3,7 @@
  * Plugin Name:       MRN SEO
  * Plugin URI:        https://mehranmarandi.ir
  * Description:       Lightweight technical and local SEO with configurable metadata, schema, redirects, and XML sitemaps.
- * Version:           2.0.0
+ * Version:           2.1.0
  * Requires at least: 6.6
  * Requires PHP:      8.1
  * Author:            Mehran Marandi
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'MRN_SEO_VERSION', '2.0.0' );
+define( 'MRN_SEO_VERSION', '2.1.0' );
 define( 'MRN_SEO_FILE', __FILE__ );
 define( 'MRN_SEO_PATH', plugin_dir_path( __FILE__ ) );
 

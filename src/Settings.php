@@ -91,7 +91,7 @@ final class Settings {
 		'schema_type'                 => array(
 			'section'     => 'schema',
 			'label'       => 'Business Schema.org type',
-			'description' => 'For example: Organization, LocalBusiness, Store, Restaurant.',
+			'description' => 'One or more comma-separated types, for example: LocalBusiness, EducationalOrganization.',
 		),
 		'area_schema_type'            => array(
 			'section'     => 'schema',
@@ -223,7 +223,10 @@ final class Settings {
 	public function hooks(): void {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'admin_init', array( $this, 'register' ) );
+		add_action( 'admin_post_mrn_seo_export', array( $this, 'export' ) );
+		add_action( 'admin_post_mrn_seo_import', array( $this, 'import' ) );
 		add_action( 'admin_notices', array( $this, 'conflict_notice' ) );
+		add_action( 'admin_notices', array( $this, 'transfer_notice' ) );
 	}
 
 	public function menu(): void {
@@ -321,8 +324,91 @@ final class Settings {
 		do_settings_sections( 'mrn-seo' );
 		submit_button();
 		?>
-		</form></div>
+		</form>
+		<hr>
+		<h2>Import and export</h2>
+		<p>Export a complete JSON template or replace this site's SEO settings from a compatible JSON file.</p>
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="display:inline-block;margin-right:1rem">
+			<input type="hidden" name="action" value="mrn_seo_export">
+			<?php wp_nonce_field( 'mrn_seo_export' ); ?>
+			<?php submit_button( 'Export settings', 'secondary', 'submit', false ); ?>
+		</form>
+		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" enctype="multipart/form-data" style="display:inline-block">
+			<input type="hidden" name="action" value="mrn_seo_import">
+			<?php wp_nonce_field( 'mrn_seo_import' ); ?>
+			<label for="mrn-seo-import"><span class="screen-reader-text">Settings JSON file</span></label>
+			<input id="mrn-seo-import" type="file" name="mrn_seo_file" accept="application/json,.json" required>
+			<?php submit_button( 'Import and replace settings', 'secondary', 'submit', false, array( 'onclick' => "return confirm('Replace all current MRN SEO settings with this file?');" ) ); ?>
+		</form>
+		</div>
 		<?php
+	}
+
+	/** Download a complete JSON document, including empty keys. */
+	public function export(): void {
+		$this->guard_transfer();
+		check_admin_referer( 'mrn_seo_export' );
+		$payload  = SettingsTransfer::export_payload();
+		$filename = 'mrn-seo-settings-' . gmdate( 'Y-m-d' ) . '.json';
+
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=UTF-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		echo wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
+	}
+
+	/** Validate and replace settings from an uploaded JSON document. */
+	public function import(): void {
+		$this->guard_transfer();
+		check_admin_referer( 'mrn_seo_import' );
+		$file = isset( $_FILES['mrn_seo_file'] ) && is_array( $_FILES['mrn_seo_file'] ) ? $_FILES['mrn_seo_file'] : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( UPLOAD_ERR_OK !== (int) ( $file['error'] ?? UPLOAD_ERR_NO_FILE ) || empty( $file['tmp_name'] ) || ! is_uploaded_file( (string) $file['tmp_name'] ) || empty( $file['size'] ) || (int) $file['size'] > MB_IN_BYTES ) {
+			$this->redirect_with_notice( 'invalid_file' );
+		}
+
+		$json = file_get_contents( (string) $file['tmp_name'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		try {
+			$settings = SettingsTransfer::decode( is_string( $json ) ? $json : '' );
+			update_option( Business::OPTION, $this->sanitize( $settings ) );
+			Sitemap::clear_cache();
+			$this->redirect_with_notice( 'imported' );
+		} catch ( \InvalidArgumentException $exception ) {
+			$this->redirect_with_notice( 'invalid_json' );
+		}
+	}
+
+	private function guard_transfer(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to manage MRN SEO settings.', 'mrn-seo' ) );
+		}
+	}
+
+	private function redirect_with_notice( string $notice ): never {
+		$url = add_query_arg(
+			array(
+				'page'           => 'mrn-seo',
+				'mrn_seo_notice' => $notice,
+			),
+			admin_url( 'options-general.php' )
+		);
+		wp_safe_redirect( $url );
+		exit;
+	}
+
+	public function transfer_notice(): void {
+		if ( ! current_user_can( 'manage_options' ) || empty( $_GET['mrn_seo_notice'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+		$notice   = sanitize_key( wp_unslash( $_GET['mrn_seo_notice'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$messages = array(
+			'imported'     => array( 'success', 'MRN SEO settings imported successfully.' ),
+			'invalid_file' => array( 'error', 'Select a JSON file smaller than 1 MB.' ),
+			'invalid_json' => array( 'error', 'The selected file is not a compatible MRN SEO settings export.' ),
+		);
+		if ( isset( $messages[ $notice ] ) ) {
+			printf( '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>', esc_attr( $messages[ $notice ][0] ), esc_html( $messages[ $notice ][1] ) );
+		}
 	}
 
 	public function conflict_notice(): void {
