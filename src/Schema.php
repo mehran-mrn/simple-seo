@@ -1,52 +1,34 @@
 <?php
 /**
- * Local business and page structured data.
+ * Configurable business and page structured data.
  *
- * @package MRN\WDS\SEO
+ * @package MRN\SEO
  */
 
-namespace MRN\WDS\SEO;
+namespace MRN\SEO;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Builds a small JSON-LD graph from canonical site data.
- */
 final class Schema {
-	/** Register schema output when no competing SEO plugin is active. */
 	public function hooks(): void {
 		if ( ! Plugin::competing_plugin_active() ) {
 			add_action( 'wp_head', array( $this, 'render' ), 20 );
 		}
 	}
 
-	/** Render business, website, page, breadcrumb, and optional FAQ schema. */
 	public function render(): void {
 		if ( is_admin() || is_feed() || is_404() || is_search() ) {
 			return;
 		}
-
 		$data        = Business::get();
 		$home        = home_url( '/' );
 		$business_id = $home . '#business';
 		$website_id  = $home . '#website';
-		$page_url    = ( new Meta() )->canonical();
+		$meta        = new Meta();
+		$page_url    = $meta->canonical();
 		$graph       = array();
-		$schema_type = 'Organization';
-		if ( Site::is_zarsam() ) {
-			$schema_type = 'JewelryStore';
-		} elseif ( Site::is_wds() ) {
-			$schema_type = array( 'LocalBusiness', 'EducationalOrganization' );
-		} elseif ( ! empty( $data['street_address'] ) || ! empty( $data['phone_e164'] ) ) {
-			$schema_type = 'LocalBusiness';
-		}
-
-		/**
-		 * Filter the public business schema type for custom site profiles.
-		 *
-		 * @param string|array<int, string> $schema_type Schema.org type or types.
-		 * @param array<string, mixed>      $data        Business settings.
-		 */
+		$schema_type = sanitize_text_field( (string) $data['schema_type'] );
+		$schema_type = $schema_type ? $schema_type : 'Organization';
 		$schema_type = apply_filters( 'mrn_seo_business_schema_type', $schema_type, $data );
 
 		$business = array(
@@ -69,18 +51,19 @@ final class Schema {
 		}
 		$service_areas = Business::service_areas();
 		if ( $service_areas ) {
+			$area_type              = sanitize_text_field( (string) $data['area_schema_type'] );
 			$business['areaServed'] = array_map(
 				static fn( string $area ): array => array(
-					'@type' => Site::is_zarsam() ? 'Country' : 'City',
+					'@type' => $area_type ? $area_type : 'Place',
 					'name'  => $area,
 				),
 				$service_areas
 			);
 		}
-		if ( ! empty( $data['email'] ) ) {
+		if ( $data['email'] ) {
 			$business['email'] = $data['email'];
 		}
-		if ( ! empty( $data['street_address'] ) ) {
+		if ( $data['street_address'] ) {
 			$business['address'] = array(
 				'@type'           => 'PostalAddress',
 				'streetAddress'   => $data['street_address'],
@@ -91,25 +74,30 @@ final class Schema {
 			);
 		}
 		if ( (float) $data['latitude'] && (float) $data['longitude'] ) {
-			$business['geo']    = array(
+			$business['geo'] = array(
 				'@type'     => 'GeoCoordinates',
 				'latitude'  => (float) $data['latitude'],
 				'longitude' => (float) $data['longitude'],
 			);
-			$directions_url = Business::directions_url();
-			if ( $directions_url ) {
-				$business['hasMap'] = $directions_url;
+			if ( Business::directions_url() ) {
+				$business['hasMap'] = Business::directions_url();
 			}
 		}
-		if ( ! empty( $data['manager'] ) ) {
-			$business[ Site::is_zarsam() ? 'employee' : 'founder' ] = array(
+		if ( $data['manager'] ) {
+			$manager_property              = sanitize_key( (string) $data['manager_schema_property'] );
+			$manager_property              = $manager_property ? $manager_property : 'founder';
+			$business[ $manager_property ] = array(
 				'@type'    => 'Person',
 				'name'     => $data['manager'],
-				'jobTitle' => Site::is_zarsam() ? 'مدیریت' : 'Owner',
+				'jobTitle' => $data['manager_job_title'],
 			);
 		}
-		if ( ! empty( $data['google_business_url'] ) ) {
-			$business['sameAs'] = array( $data['google_business_url'] );
+		$profiles = Business::list_setting( 'social_profiles' );
+		if ( $data['google_business_url'] ) {
+			$profiles[] = $data['google_business_url'];
+		}
+		if ( $profiles ) {
+			$business['sameAs'] = array_values( array_unique( $profiles ) );
 		}
 		$graph[] = $business;
 		$graph[] = array(
@@ -125,7 +113,7 @@ final class Schema {
 			'@id'         => $page_url . '#webpage',
 			'url'         => $page_url,
 			'name'        => wp_get_document_title(),
-			'description' => ( new Meta() )->description(),
+			'description' => $meta->description(),
 			'isPartOf'    => array( '@id' => $website_id ),
 			'about'       => array( '@id' => $business_id ),
 			'inLanguage'  => Site::language(),
@@ -139,7 +127,7 @@ final class Schema {
 					array(
 						'@type'    => 'ListItem',
 						'position' => 1,
-						'name'     => Site::is_zarsam() ? 'خانه' : __( 'Home', 'mrn-wds-seo' ),
+						'name'     => (string) $data['home_label'],
 						'item'     => $home,
 					),
 					array(
@@ -152,28 +140,39 @@ final class Schema {
 			);
 		}
 
-		if ( Site::is_wds() && is_page( 'faqs' ) && function_exists( 'mrn_wds_faqs' ) ) {
+		$faq = $this->faq_items( (string) $data['faq_items'] );
+		if ( $faq && is_page( sanitize_title( (string) $data['faq_page_slug'] ) ) ) {
 			$graph[] = array(
 				'@type'      => 'FAQPage',
 				'@id'        => $page_url . '#faq',
-				'mainEntity' => array_map(
-					static fn( array $faq ): array => array(
-						'@type'          => 'Question',
-						'name'           => $faq['question'],
-						'acceptedAnswer' => array(
-							'@type' => 'Answer',
-							'text'  => $faq['answer'],
-						),
-					),
-					mrn_wds_faqs()
-				),
+				'mainEntity' => $faq,
 			);
 		}
-
 		$payload = array(
 			'@context' => 'https://schema.org',
 			'@graph'   => $graph,
 		);
 		echo '<script type="application/ld+json">' . wp_json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
+	}
+
+	/** @return array<int, array<string, mixed>> */
+	private function faq_items( string $raw ): array {
+		$items = array();
+		$lines = preg_split( '/\R/', $raw );
+		foreach ( $lines ? $lines : array() as $line ) {
+			$parts = array_map( 'trim', explode( '|', $line, 2 ) );
+			if ( empty( $parts[0] ) || empty( $parts[1] ) ) {
+				continue;
+			}
+			$items[] = array(
+				'@type'          => 'Question',
+				'name'           => $parts[0],
+				'acceptedAnswer' => array(
+					'@type' => 'Answer',
+					'text'  => $parts[1],
+				),
+			);
+		}
+		return $items;
 	}
 }

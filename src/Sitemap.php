@@ -2,10 +2,10 @@
 /**
  * Yoast-style XML sitemap index backed by WordPress sitemap providers.
  *
- * @package MRN\WDS\SEO
+ * @package MRN\SEO
  */
 
-namespace MRN\WDS\SEO;
+namespace MRN\SEO;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -80,7 +80,8 @@ final class Sitemap {
 		 * @param int    $max_urls    Default 1000, matching Yoast SEO.
 		 * @param string $object_type WordPress sitemap object type.
 		 */
-		$max_urls = (int) apply_filters( 'mrn_seo_sitemap_entries_per_page', 1000, $object_type );
+		$data     = Business::get();
+		$max_urls = (int) apply_filters( 'mrn_seo_sitemap_entries_per_page', (int) $data['sitemap_max_urls'], $object_type );
 		return min( 50000, max( 1, $max_urls ) );
 	}
 
@@ -211,7 +212,7 @@ final class Sitemap {
 		$entries = array();
 		foreach ( $this->maps() as $map ) {
 			for ( $page = 1; $page <= $map['pages']; $page++ ) {
-				$urls    = $map['provider']->get_url_list( $page, $map['subtype'] );
+				$urls      = $map['provider']->get_url_list( $page, $map['subtype'] );
 				$entries[] = array(
 					'loc'     => $this->map_url( $map['type'], $page ),
 					'lastmod' => $this->latest_modified( is_array( $urls ) ? $urls : array() ),
@@ -247,13 +248,17 @@ final class Sitemap {
 		$providers = $server->registry->get_providers();
 		$maps      = array();
 
+		$data                = Business::get();
+		$excluded_post_types = Business::list_setting( 'sitemap_excluded_post_types' );
+		$excluded_taxonomies = Business::list_setting( 'sitemap_excluded_taxonomies' );
+
 		foreach ( $providers as $name => $provider ) {
 			if ( ! $provider instanceof \WP_Sitemaps_Provider ) {
 				continue;
 			}
 
 			if ( 'users' === $name ) {
-				if ( Site::is_wds() ) {
+				if ( '1' !== $data['sitemap_include_authors'] ) {
 					continue;
 				}
 				$pages = (int) $provider->get_max_num_pages();
@@ -287,10 +292,10 @@ final class Sitemap {
 					continue;
 				}
 				$subtype = $subtype_name;
-				if ( Site::is_wds() && 'taxonomies' === $name && in_array( $subtype, array( 'category', 'post_tag' ), true ) ) {
+				if ( ( 'taxonomies' === $name && in_array( $subtype, $excluded_taxonomies, true ) ) || ( 'posts' === $name && in_array( $subtype, $excluded_post_types, true ) ) ) {
 					continue;
 				}
-				$pages   = (int) $provider->get_max_num_pages( $subtype );
+				$pages = (int) $provider->get_max_num_pages( $subtype );
 				if ( $pages < 1 ) {
 					continue;
 				}

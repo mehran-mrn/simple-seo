@@ -1,14 +1,14 @@
 [CmdletBinding()]
 param(
-	[string]$Version = '1.2.0'
+	[string]$Version = '2.0.0'
 )
 
 $ErrorActionPreference = 'Stop'
 $pluginRoot = Split-Path -Parent $PSScriptRoot
 $pluginsRoot = Split-Path -Parent $pluginRoot
-$destination = Join-Path $pluginsRoot "mrn-wds-seo-$Version.zip"
-$staging = Join-Path ([System.IO.Path]::GetTempPath()) ("mrn-wds-seo-" + [guid]::NewGuid().ToString('N'))
-$packageRoot = Join-Path $staging 'mrn-wds-seo'
+$destination = Join-Path $pluginsRoot "mrn-seo-$Version.zip"
+$staging = Join-Path ([System.IO.Path]::GetTempPath()) ("mrn-seo-" + [guid]::NewGuid().ToString('N'))
+$packageRoot = Join-Path $staging 'mrn-seo'
 
 try {
 	New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
