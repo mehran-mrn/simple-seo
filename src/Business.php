@@ -1,100 +1,73 @@
 <?php
 /**
- * Central business data.
+ * Central, user-configurable site data.
  *
- * @package MRN\WDS\SEO
+ * @package MRN\SEO
  */
 
-namespace MRN\WDS\SEO;
+namespace MRN\SEO;
 
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Provides the single source of truth for public business information.
- */
+/** Provides the single source of truth for SEO settings. */
 final class Business {
-	public const OPTION = 'mrn_wds_seo_settings';
+	public const OPTION = 'mrn_seo_settings';
 
-	/**
-	 * Default, production-safe business data.
-	 *
-	 * @return array<string, mixed>
-	 */
+	/** @return array<string, mixed> */
 	public static function defaults(): array {
-		if ( Site::is_zarsam() ) {
-			return array(
-				'name'                => 'فروشگاه طلا و جواهر زرسام',
-				'legal_name'          => 'زرسام',
-				'manager'             => 'سهیل قربانعلی پور',
-				'phone'               => '۰۹۱۲۰۳۹۱۱۳۶',
-				'phone_e164'          => '+989120391136',
-				'email'               => '',
-				'street_address'      => '',
-				'address_locality'    => '',
-				'address_region'      => '',
-				'postal_code'         => '',
-				'address_country'     => 'IR',
-				'latitude'            => '0',
-				'longitude'           => '0',
-				'service_areas'       => 'ایران',
-				'google_business_url' => '',
-				'google_place_id'     => '',
-				'price_range'         => '$$$',
-			);
-		}
-
-		if ( Site::is_wds() ) {
-			return array(
-				'name'                => 'WDS Driving School',
-				'legal_name'          => 'WDS Driving School',
-				'manager'             => '',
-				'phone'               => '+1 (647) 606-1213',
-				'phone_e164'          => '+16476061213',
-				'email'               => 'wdsdrivingschool@gmail.com',
-				'street_address'      => '60 Granton Dr',
-				'address_locality'    => 'Richmond Hill',
-				'address_region'      => 'ON',
-				'postal_code'         => 'L4B 2N6',
-				'address_country'     => 'CA',
-				'latitude'            => '43.8569221',
-				'longitude'           => '-79.3886688',
-				'service_areas'       => 'Richmond Hill, Newmarket, Scarborough',
-				'google_business_url' => 'https://share.google/drWhtOYaoG6KalWJF',
-				'google_place_id'     => '/g/11z7lgm34p',
-				'price_range'         => '$$',
-			);
-		}
-
 		$locale_parts = preg_split( '/[-_]/', get_locale() );
 		$country      = is_array( $locale_parts ) && isset( $locale_parts[1] ) ? strtoupper( $locale_parts[1] ) : '';
 		$name         = (string) get_bloginfo( 'name' );
 
 		return array(
-			'name'                => $name,
-			'legal_name'          => $name,
-			'manager'             => '',
-			'phone'               => '',
-			'phone_e164'          => '',
-			'email'               => (string) get_option( 'admin_email', '' ),
-			'street_address'      => '',
-			'address_locality'    => '',
-			'address_region'      => '',
-			'postal_code'         => '',
-			'address_country'     => $country,
-			'latitude'            => '0',
-			'longitude'           => '0',
-			'service_areas'       => '',
-			'google_business_url' => '',
-			'google_place_id'     => '',
-			'price_range'         => '',
+			'name'                        => $name,
+			'legal_name'                  => $name,
+			'manager'                     => '',
+			'manager_job_title'           => 'Owner',
+			'manager_schema_property'     => 'founder',
+			'phone'                       => '',
+			'phone_e164'                  => '',
+			'email'                       => (string) get_option( 'admin_email', '' ),
+			'street_address'              => '',
+			'address_locality'            => '',
+			'address_region'              => '',
+			'postal_code'                 => '',
+			'address_country'             => $country,
+			'latitude'                    => '0',
+			'longitude'                   => '0',
+			'service_areas'               => '',
+			'google_business_url'         => '',
+			'price_range'                 => '',
+			'schema_type'                 => 'Organization',
+			'area_schema_type'            => 'Place',
+			'language'                    => (string) get_bloginfo( 'language' ),
+			'og_locale'                   => str_replace( '-', '_', (string) get_bloginfo( 'language' ) ),
+			'home_label'                  => 'Home',
+			'logo_url'                    => '',
+			'social_image_url'            => '',
+			'social_profiles'             => '',
+			'home_title'                  => '',
+			'home_description'            => '',
+			'default_description'         => '',
+			'page_metadata'               => '',
+			'redirects'                   => '',
+			'faq_page_slug'               => '',
+			'faq_items'                   => '',
+			'staging_host_patterns'       => 'staging,localhost,.test,.local',
+			'noindex_search'              => '1',
+			'noindex_404'                 => '1',
+			'noindex_date_archives'       => '0',
+			'noindex_author_archives'     => '0',
+			'noindex_category_archives'   => '0',
+			'noindex_tag_archives'        => '0',
+			'sitemap_excluded_post_types' => '',
+			'sitemap_excluded_taxonomies' => '',
+			'sitemap_include_authors'     => '1',
+			'sitemap_max_urls'            => '1000',
 		);
 	}
 
-	/**
-	 * Return settings merged with defaults.
-	 *
-	 * @return array<string, mixed>
-	 */
+	/** @return array<string, mixed> */
 	public static function get(): array {
 		$defaults = self::defaults();
 		$value    = get_option( self::OPTION, array() );
@@ -102,48 +75,34 @@ final class Business {
 		return wp_parse_args( $value, $defaults );
 	}
 
-	/**
-	 * Return the configured postal address.
-	 */
-	public static function full_address(): string {
+	/** Return a comma-separated setting as a normalized list. */
+	public static function list_setting( string $key ): array {
 		$data = self::get();
-		$region = trim( (string) $data['address_region'] . ' ' . (string) $data['postal_code'] );
-		return implode(
-			', ',
-			array_filter(
-				array( $data['street_address'], $data['address_locality'], $region, $data['address_country'] )
-			)
-		);
+		return array_values( array_filter( array_map( 'trim', explode( ',', (string) ( $data[ $key ] ?? '' ) ) ) ) );
 	}
 
-	/**
-	 * Return a stable Google Maps directions URL.
-	 */
+	public static function full_address(): string {
+		$data   = self::get();
+		$region = trim( (string) $data['address_region'] . ' ' . (string) $data['postal_code'] );
+		return implode( ', ', array_filter( array( $data['street_address'], $data['address_locality'], $region, $data['address_country'] ) ) );
+	}
+
 	public static function directions_url(): string {
 		$address = self::full_address();
-		if ( ! $address ) {
-			return '';
-		}
-
-		return add_query_arg(
+		return $address ? add_query_arg(
 			array(
 				'api'         => '1',
 				'destination' => $address,
-				'travelmode'  => 'driving',
 			),
 			'https://www.google.com/maps/dir/'
-		);
+		) : '';
 	}
 
-	/**
-	 * Return the keyless Google Maps embed query URL.
-	 */
 	public static function map_embed_url(): string {
 		$data = self::get();
 		if ( ! (float) $data['latitude'] || ! (float) $data['longitude'] ) {
 			return '';
 		}
-
 		return add_query_arg(
 			array(
 				'q'      => $data['latitude'] . ',' . $data['longitude'],
@@ -154,13 +113,8 @@ final class Business {
 		);
 	}
 
-	/**
-	 * Return service areas as a clean list.
-	 *
-	 * @return array<int, string>
-	 */
+	/** @return array<int, string> */
 	public static function service_areas(): array {
-		$data = self::get();
-		return array_values( array_filter( array_map( 'trim', explode( ',', (string) $data['service_areas'] ) ) ) );
+		return self::list_setting( 'service_areas' );
 	}
 }
