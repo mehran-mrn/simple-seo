@@ -1,11 +1,19 @@
 [CmdletBinding()]
 param(
-	[string]$Version = '2.0.0'
+	[string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $pluginRoot = Split-Path -Parent $PSScriptRoot
 $pluginsRoot = Split-Path -Parent $pluginRoot
+$mainFile = Join-Path $pluginRoot 'mrn-seo.php'
+if (-not $Version) {
+	$versionMatch = [regex]::Match((Get-Content -LiteralPath $mainFile -Raw), '(?m)^\s*\*\s*Version:\s*([^\r\n]+)$')
+	if (-not $versionMatch.Success) {
+		throw "Could not read the plugin version from $mainFile"
+	}
+	$Version = $versionMatch.Groups[1].Value.Trim()
+}
 $destination = Join-Path $pluginsRoot "mrn-seo-$Version.zip"
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ("mrn-seo-" + [guid]::NewGuid().ToString('N'))
 $packageRoot = Join-Path $staging 'mrn-seo'
