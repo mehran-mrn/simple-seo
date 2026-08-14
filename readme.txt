@@ -4,7 +4,7 @@ Tags: seo, local seo, schema, sitemap, redirects, open graph
 Requires at least: 6.6
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 
 Lightweight, site-agnostic technical and local SEO for WordPress.
@@ -31,6 +31,9 @@ The Import and export section downloads every supported settings key, including 
 empty values. Import validates the document format and replaces the current SEO settings.
 
 == Changelog ==
+
+= 2.1.1 =
+* Exclude tag and category taxonomies from XML sitemaps when their archive noindex setting is enabled.
 
 = 2.1.0 =
 * Add complete JSON settings export with explicit empty values for every supported key.

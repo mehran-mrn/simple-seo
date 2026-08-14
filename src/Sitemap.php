@@ -15,7 +15,7 @@ defined( 'ABSPATH' ) || exit;
 final class Sitemap {
 	private const INDEX_PATH = '/sitemap_index.xml';
 	private const XSL_PATH   = '/mrn-sitemap.xsl';
-	private const CACHE_KEY  = 'mrn_seo_sitemap_index';
+	private const CACHE_KEY  = 'mrn_seo_sitemap_index_v2';
 
 	/** Register sitemap hooks when no full SEO plugin owns sitemap routing. */
 	public function hooks(): void {
@@ -251,6 +251,13 @@ final class Sitemap {
 		$data                = Business::get();
 		$excluded_post_types = Business::list_setting( 'sitemap_excluded_post_types' );
 		$excluded_taxonomies = Business::list_setting( 'sitemap_excluded_taxonomies' );
+		if ( '1' === $data['noindex_category_archives'] ) {
+			$excluded_taxonomies[] = 'category';
+		}
+		if ( '1' === $data['noindex_tag_archives'] ) {
+			$excluded_taxonomies[] = 'post_tag';
+		}
+		$excluded_taxonomies = array_values( array_unique( $excluded_taxonomies ) );
 
 		foreach ( $providers as $name => $provider ) {
 			if ( ! $provider instanceof \WP_Sitemaps_Provider ) {
