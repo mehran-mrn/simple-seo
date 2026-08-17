@@ -56,7 +56,7 @@ namespace {
 		public function get_providers(): array {
 			return array(
 				'posts'      => new Test_Provider( array( 'post' => new \stdClass(), 'product' => new \stdClass() ), array( 'post' => 2, 'product' => 1 ) ),
-				'taxonomies' => new Test_Provider( array( 'category' => new \stdClass() ), array( 'category' => 1 ) ),
+				'taxonomies' => new Test_Provider( array( 'category' => new \stdClass(), 'post_tag' => new \stdClass() ), array( 'category' => 1, 'post_tag' => 1 ) ),
 				'users'      => new Test_Provider( array(), array( '' => 1 ) ),
 			);
 		}
@@ -85,7 +85,13 @@ namespace MRN\SEO {
 
 	$method = new \ReflectionMethod( Sitemap::class, 'maps' );
 	$maps   = $method->invoke( $sitemap );
-	assert_true( array( 'post', 'product', 'category', 'author' ) === array_column( $maps, 'type' ), 'Default sitemap must expose every provider.' );
+	assert_true( array( 'post', 'product', 'category', 'post_tag', 'author' ) === array_column( $maps, 'type' ), 'Default sitemap must expose every provider.' );
+
+	$GLOBALS['test_options'][ Business::OPTION ] = array(
+		'noindex_tag_archives' => '1',
+	);
+	$maps = $method->invoke( $sitemap );
+	assert_true( ! in_array( 'post_tag', array_column( $maps, 'type' ), true ), 'Noindexed tag archives must be excluded from the sitemap.' );
 
 	$GLOBALS['test_options'][ Business::OPTION ] = array(
 		'sitemap_excluded_post_types' => 'product',
@@ -95,7 +101,7 @@ namespace MRN\SEO {
 	);
 	Sitemap::clear_cache();
 	$maps = $method->invoke( $sitemap );
-	assert_true( array( 'post' ) === array_column( $maps, 'type' ), 'Sitemap exclusions must come from settings.' );
+	assert_true( array( 'post', 'post_tag' ) === array_column( $maps, 'type' ), 'Sitemap exclusions must come from settings.' );
 	$rules = ( new Redirects() )->rules();
 	assert_true( 2 === count( $rules ) && 302 === $rules[0]['status'], 'Redirects must come from settings.' );
 
